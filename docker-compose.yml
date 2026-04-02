@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+
+  # ── Neo4j ──────────────────────────────────────────────────────────
+  neo4j:
+    image: neo4j:5-community
+    container_name: kg-rag-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # Browser UI
+      - "7687:7687"   # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+
+  # ── Ollama (local LLM) ─────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kg-rag-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /bin/ollama serve &
+        OLLAMA_PID=$!
+        echo "Waiting for Ollama to start..."
+        sleep 8
+        echo "Pulling llama3.2..."
+        /bin/ollama pull llama3.2 || echo "Pull failed - model may already exist"
+        wait $OLLAMA_PID
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── Flask Web Frontend ────────────────────────────────────────────
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kg-rag-flask
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - SECRET_KEY=change-me-in-production
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  ollama_data:

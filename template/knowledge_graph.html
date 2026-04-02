@@ -1,0 +1,1034 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Graph — MultiHop RAG{% endblock %}
+
+{% block head %}
+<style>
+/* Knowledge Graph Page Styles */
+.kg-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.kg-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+}
+
+.kg-tab {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.kg-tab:hover { color: var(--ink); }
+.kg-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.kg-tab-content { display: none; }
+.kg-tab-content.active { display: block; }
+
+/* Connection Status */
+.kg-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 2rem;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+.status-indicator--connected { background: var(--accent-2); }
+.status-indicator--disconnected { background: var(--accent-3); }
+
+.status-text { font-weight: 500; }
+.status-text--connected { color: var(--accent-2); }
+.status-text--disconnected { color: var(--accent-3); }
+
+/* Stats Grid */
+.kg-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--bg-card-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stat-card__value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.stat-card__label {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin-top: 0.5rem;
+}
+
+/* Document Upload */
+.doc-upload {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+.doc-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.doc-textarea {
+    width: 100%;
+    min-height: 250px;
+    padding: 1rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--ink);
+    resize: vertical;
+}
+
+.doc-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--ink);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+}
+
+.doc-preview {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+}
+
+.preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.preview-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-2);
+    border-radius: var(--radius-sm);
+}
+
+.preview-icon { font-size: 1.25rem; }
+.preview-info { flex: 1; }
+.preview-name { font-weight: 600; font-size: 0.9rem; color: var(--ink); }
+.preview-count { font-size: 0.75rem; color: var(--ink-muted); }
+
+/* Entity Badges */
+.entity-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin: 2px;
+}
+.badge-PERSON       { background: rgba(0,212,170,0.15); color: var(--node-person); }
+.badge-ORGANIZATION  { background: rgba(245,200,66,0.15); color: var(--node-org); }
+.badge-TECHNOLOGY    { background: rgba(255,107,107,0.15); color: var(--node-tech); }
+.badge-CONCEPT       { background: rgba(167,139,250,0.15); color: var(--node-concept); }
+.badge-EVENT         { background: rgba(251,146,60,0.15); color: #fb923c; }
+.badge-LOCATION      { background: rgba(34,211,238,0.15); color: #22d3ee; }
+
+/* Q&A Section */
+.qa-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.qa-input-wrapper {
+    display: flex;
+    gap: 1rem;
+}
+
+.qa-input {
+    flex: 1;
+    padding: 1rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+.qa-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.qa-settings {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.setting-label {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+}
+
+.setting-select, .setting-range {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.75rem;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+
+/* Answer Display */
+.answer-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.answer-content {
+    font-size: 1rem;
+    line-height: 1.8;
+    color: var(--ink-soft);
+}
+
+.answer-content code {
+    background: rgba(108,99,255,0.15);
+    padding: 0 4px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+}
+
+/* Citations */
+.citations-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.citations-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 1rem;
+}
+
+.citation-card {
+    background: var(--bg-2);
+    border: 1px solid rgba(108,99,255,0.2);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.citation-ref {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.citation-entity {
+    margin-left: 0.5rem;
+    font-weight: 600;
+}
+
+.citation-doc {
+    display: block;
+    color: var(--accent-2);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.citation-text {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-top: 0.5rem;
+}
+
+/* Reasoning Trace */
+.trace-section {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.trace-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    user-select: none;
+}
+
+.trace-content {
+    margin-top: 0.75rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--border);
+}
+
+.trace-step {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    padding: 0.25rem 0;
+}
+
+/* Graph Explorer */
+.graph-explorer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.graph-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.panel-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.entity-list, .relationship-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.entity-item {
+    padding: 0.75rem;
+    background: var(--bg-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.entity-item:hover { background: var(--bg-card-2); }
+
+.entity-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.entity-name { font-weight: 600; color: var(--ink); }
+.entity-desc { font-size: 0.8rem; color: var(--ink-muted); }
+
+.relationship-item {
+    padding: 0.75rem;
+    background: var(--bg-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.rel-source { color: var(--accent); }
+.rel-type { color: var(--accent-2); font-weight: 600; }
+.rel-target { color: var(--accent); }
+
+/* Loading Spinner */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(108,99,255,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Button Ghost */
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border-2);
+    color: var(--ink-soft);
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+}
+
+.btn-ghost:hover {
+    border-color: var(--ink-muted);
+    color: var(--ink);
+}
+
+/* Example Questions */
+.example-questions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.example-btn {
+    padding: 0.5rem 1rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.example-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Clear Graph Button */
+.clear-graph-btn {
+    background: transparent;
+    border: 1px solid var(--accent-3);
+    color: var(--accent-3);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-graph-btn:hover {
+    background: rgba(255,107,107,0.1);
+}
+
+/* Select Dropdown */
+.doc-select {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .doc-upload { grid-template-columns: 1fr; }
+    .graph-explorer { grid-template-columns: 1fr; }
+    .kg-stats { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kg-container">
+    <!-- Header -->
+    <div style="margin-bottom: 2rem;">
+        <h1 style="font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+            🔍 Knowledge Graph RAG
+        </h1>
+        <p style="color: var(--ink-muted); font-size: 0.95rem; margin-top: 0.25rem;">
+            Build a structured knowledge graph from documents → traverse entity relationships → get answers with verifiable citations.
+        </p>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="kg-status">
+        <div class="status-indicator status-indicator--{{ 'connected' if neo4j_connected else 'disconnected' }}"></div>
+        <span class="status-text status-text--{{ 'connected' if neo4j_connected else 'disconnected' }}">
+            Neo4j: {{ 'Connected' if neo4j_connected else 'Disconnected' }}
+        </span>
+        {% if graph_stats %}
+        <span style="color: var(--ink-muted); margin-left: auto; font-size: 0.85rem;">
+            {{ graph_stats.nodes }} entities · {{ graph_stats.relationships }} relationships · {{ graph_stats.documents|length }} documents
+        </span>
+        {% endif %}
+    </div>
+
+    {% if not neo4j_connected %}
+    <div style="background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 2rem; color: var(--accent-3);">
+        ⚠️ Cannot connect to Neo4j. Please ensure Neo4j is running and check your environment variables (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD).
+    </div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <div class="kg-tabs">
+        <button class="kg-tab active" data-tab="add-docs">📄 Add Documents</button>
+        <button class="kg-tab" data-tab="ask-cite">❓ Ask & Cite</button>
+        <button class="kg-tab" data-tab="explore">🔬 Explore Graph</button>
+    </div>
+
+    <!-- Tab 1: Add Documents -->
+    <div class="kg-tab-content active" id="add-docs">
+        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Step 1 — Build Knowledge Graph from Documents</h2>
+        <p style="color: var(--ink-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+            Paste any document. The LLM extracts entities and relationships and stores them in Neo4j with full source provenance.
+        </p>
+
+        <div class="doc-upload">
+            <div class="doc-input-group">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="use-sample" checked>
+                    <label for="use-sample">Use a sample document</label>
+                </div>
+
+                <select class="doc-select" id="sample-select">
+                    {% for doc in sample_docs %}
+                    <option value="{{ doc }}">{{ doc }}</option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" class="form-input" id="doc-name" placeholder="Document name" style="display: none;">
+
+                <textarea class="doc-textarea" id="doc-text" placeholder="Paste any text here..."></textarea>
+
+                <button class="btn-primary" id="extract-btn" style="width: 100%; justify-content: center;">
+                    🔨 Extract & Add to Knowledge Graph
+                </button>
+            </div>
+
+            <div class="doc-preview">
+                <h3 style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--ink-muted);">Extraction preview will appear after processing</h3>
+                <div id="extraction-preview">
+                    {% if graph_stats and graph_stats.nodes %}
+                    <p style="font-size: 0.85rem; color: var(--ink-muted);">Graph currently contains:</p>
+                    <p style="font-size: 0.85rem;">- <code style="color: var(--accent);">{{ graph_stats.nodes }}</code> entities</p>
+                    <p style="font-size: 0.85rem;">- <code style="color: var(--accent);">{{ graph_stats.relationships }}</code> relationships</p>
+                    {% if graph_stats.documents %}
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem;">Indexed documents:</p>
+                    {% for doc in graph_stats.documents %}
+                    <p style="font-size: 0.8rem; color: var(--ink-muted); margin-left: 0.5rem;">📄 {{ doc }}</p>
+                    {% endfor %}
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Extracted Data Display -->
+        <div id="extracted-data" style="margin-top: 2rem; display: none;">
+            <details style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
+                <summary style="cursor: pointer; font-weight: 600;">📋 Last extracted: <span id="extract-count"></span></summary>
+                <div id="extracted-content" style="margin-top: 1rem;"></div>
+            </details>
+        </div>
+    </div>
+
+    <!-- Tab 2: Ask & Cite -->
+    <div class="kg-tab-content" id="ask-cite">
+        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Step 2 — Ask Questions with Verifiable Citations</h2>
+        <p style="color: var(--ink-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+            Query your knowledge graph with multi-hop traversal. Get answers with inline citations traceable to source documents.
+        </p>
+
+        {% if not graph_stats or graph_stats.nodes == 0 %}
+        <div style="background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.3); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.5rem; color: var(--ink-soft);">
+            💡 Add at least one document in the <strong>Add Documents</strong> tab first.
+        </div>
+        {% endif %}
+
+        <div class="qa-container">
+            <div>
+                <div class="qa-settings">
+                    <span class="setting-label">Model:</span>
+                    <select class="setting-select" id="model-select">
+                        <option value="llama3.2">llama3.2</option>
+                        <option value="llama3.1">llama3.1</option>
+                        <option value="mistral">mistral</option>
+                        <option value="phi3">phi3</option>
+                        <option value="gemma2">gemma2</option>
+                    </select>
+
+                    <span class="setting-label" style="margin-left: 1rem;">Traversal Hops:</span>
+                    <input type="range" class="setting-range" id="hops-range" min="1" max="4" value="2">
+                    <span id="hops-value" style="font-size: 0.85rem; color: var(--accent);">2</span>
+                </div>
+
+                <div class="example-questions">
+                    <button class="example-btn" data-query="Who developed GraphRAG and what organization are they from?">Who developed GraphRAG?</button>
+                    <button class="example-btn" data-query="What companies use Neo4j?">Companies using Neo4j?</button>
+                    <button class="example-btn" data-query="How is Acme Corp connected to Microsoft?">Acme Corp ↔ Microsoft</button>
+                    <button class="example-btn" data-query="Who founded Neo4j and when?">Who founded Neo4j?</button>
+                </div>
+
+                <div class="qa-input-wrapper">
+                    <input type="text" class="qa-input" id="query-input" placeholder="Your question..." value="Who developed GraphRAG and what organization are they from?">
+                    <button class="btn-primary" id="ask-btn">🔍 Ask with Citations</button>
+                </div>
+            </div>
+
+            <!-- Answer Display -->
+            <div id="answer-container" style="display: none;">
+                <!-- Reasoning Trace -->
+                <div class="trace-section">
+                    <div class="trace-toggle" onclick="document.getElementById('trace-content').style.display = document.getElementById('trace-content').style.display === 'none' ? 'block' : 'none'">
+                        <span>🧠 Reasoning Trace</span>
+                        <span style="color: var(--ink-faint);">(click to toggle)</span>
+                    </div>
+                    <div id="trace-content" class="trace-content" style="display: none;"></div>
+                </div>
+
+                <!-- Answer -->
+                <div class="answer-box">
+                    <h3 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--ink-muted);">💬 Answer</h3>
+                    <div id="answer-content" class="answer-content"></div>
+
+                    <!-- Citations -->
+                    <div class="citations-section">
+                        <h4 class="citations-title">📚 Source Citations</h4>
+                        <div id="citations-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Explore Graph -->
+    <div class="kg-tab-content" id="explore">
+        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Step 3 — Explore the Knowledge Graph</h2>
+        <p style="color: var(--ink-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+            Inspect the entity and relationship structure of your knowledge graph.
+        </p>
+
+        {% if neo4j_connected %}
+        <div class="kg-stats">
+            <div class="stat-card">
+                <div class="stat-card__value" id="stat-entities">{{ graph_stats.nodes if graph_stats else 0 }}</div>
+                <div class="stat-card__label">Total Entities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value" id="stat-relationships">{{ graph_stats.relationships if graph_stats else 0 }}</div>
+                <div class="stat-card__label">Total Relationships</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__value" id="stat-documents">{{ graph_stats.documents|length if graph_stats else 0 }}</div>
+                <div class="stat-card__label">Indexed Documents</div>
+            </div>
+        </div>
+
+        <button class="clear-graph-btn" id="clear-graph-btn" style="margin-bottom: 1.5rem;">
+            🗑️ Clear Entire Graph
+        </button>
+
+        <div class="graph-explorer">
+            <!-- Entities Panel -->
+            <div class="graph-panel">
+                <div class="panel-title">
+                    <span>Entities by Type</span>
+                    <button class="btn-ghost" id="refresh-entities" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Refresh</button>
+                </div>
+                <div id="entity-list" class="entity-list">
+                    <p style="color: var(--ink-muted); font-size: 0.85rem;">Loading entities...</p>
+                </div>
+            </div>
+
+            <!-- Relationships Panel -->
+            <div class="graph-panel">
+                <div class="panel-title">
+                    <span>Relationships</span>
+                    <button class="btn-ghost" id="refresh-relationships" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Refresh</button>
+                </div>
+                <div id="relationship-list" class="relationship-list">
+                    <p style="color: var(--ink-muted); font-size: 0.85rem;">Loading relationships...</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+            <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem;">Open Neo4j Browser</h4>
+            <p style="font-size: 0.85rem; color: var(--ink-muted); margin-bottom: 0.75rem;">
+                Visualize the full graph interactively in Neo4j Browser.
+            </p>
+            <code style="display: block; background: var(--bg-2); padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-2);">
+                MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 50
+            </code>
+        </div>
+        {% else %}
+        <p style="color: var(--accent-3);">Connect to Neo4j to explore the graph.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.kg-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.kg-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.kg-tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+    });
+});
+
+// Sample document toggle
+const useSampleCheckbox = document.getElementById('use-sample');
+const sampleSelect = document.getElementById('sample-select');
+const docNameInput = document.getElementById('doc-name');
+const docText = document.getElementById('doc-text');
+
+const sampleDocs = {{ sample_docs | tojson }};
+
+function updateDocDisplay() {
+    if (useSampleCheckbox.checked) {
+        sampleSelect.style.display = 'block';
+        docNameInput.style.display = 'none';
+        docText.value = sampleDocs[sampleSelect.value] || '';
+    } else {
+        sampleSelect.style.display = 'none';
+        docNameInput.style.display = 'block';
+        docText.value = '';
+    }
+}
+
+useSampleCheckbox.addEventListener('change', updateDocDisplay);
+sampleSelect.addEventListener('change', () => {
+    docText.value = sampleDocs[sampleSelect.value] || '';
+});
+updateDocDisplay();
+
+// Hops slider
+const hopsRange = document.getElementById('hops-range');
+const hopsValue = document.getElementById('hops-value');
+hopsRange.addEventListener('input', () => hopsValue.textContent = hopsRange.value);
+
+// Example questions
+document.querySelectorAll('.example-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('query-input').value = btn.dataset.query;
+    });
+});
+
+// Extract entities
+document.getElementById('extract-btn').addEventListener('click', async () => {
+    const docName = useSampleCheckbox.checked ? sampleSelect.value : docNameInput.value.trim();
+    const text = docText.value.trim();
+
+    if (!text) {
+        alert('Please enter some text first.');
+        return;
+    }
+    if (!useSampleCheckbox.checked && !docName) {
+        alert('Please give the document a name.');
+        return;
+    }
+
+    const btn = document.getElementById('extract-btn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> Extracting...';
+
+    try {
+        const response = await fetch('/api/extract-entities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_name: docName, text: text, model: document.getElementById('model-select').value })
+        });
+
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            // Display extracted data
+            const extractedData = document.getElementById('extracted-data');
+            const extractCount = document.getElementById('extract-count');
+            const extractedContent = document.getElementById('extracted-content');
+
+            extractCount.textContent = `${data.entities.length} entities, ${data.relationships.length} relationships`;
+
+            let html = '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+            html += '<h5 style="font-size: 0.85rem; color: var(--ink-muted);">Entities:</h5>';
+            data.entities.forEach(e => {
+                html += `<div style="font-size: 0.85rem;"><span class="entity-badge badge-${e.entity_type}">${e.entity_type}</span> <strong>${e.name}</strong> — ${e.description}</div>`;
+            });
+            html += '<div style="border-top: 1px solid var(--border); margin: 0.5rem 0;"></div>';
+            html += '<h5 style="font-size: 0.85rem; color: var(--ink-muted);">Relationships:</h5>';
+            data.relationships.forEach(r => {
+                html += `<div style="font-size: 0.8rem; color: var(--ink-muted);">→ <code style="color: var(--accent);">${r.source}</code> <span style="color: var(--accent-2);">${r.relation_type}</span> <code style="color: var(--accent);">${r.target}</code></div>`;
+            });
+            html += '</div>';
+
+            extractedContent.innerHTML = html;
+            extractedData.style.display = 'block';
+
+            // Update preview
+            document.getElementById('extraction-preview').innerHTML = `
+                <p style="color: var(--accent-2); font-weight: 600;">✅ Extracted ${data.entities.length} entities and ${data.relationships.length} relationships from <em>${docName}</em></p>
+            `;
+
+            // Refresh stats
+            location.reload();
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
+
+// Ask question
+document.getElementById('ask-btn').addEventListener('click', async () => {
+    const query = document.getElementById('query-input').value.trim();
+    if (!query) {
+        alert('Please enter a question.');
+        return;
+    }
+
+    const btn = document.getElementById('ask-btn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> Thinking...';
+
+    const answerContainer = document.getElementById('answer-container');
+    answerContainer.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: query,
+                hops: parseInt(hopsRange.value),
+                model: document.getElementById('model-select').value
+            })
+        });
+
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            document.getElementById('answer-content').innerHTML = `<p style="color: var(--accent-3);">Error: ${data.error}</p>`;
+            document.getElementById('citations-list').innerHTML = '';
+        } else {
+            // Reasoning trace
+            const traceContent = document.getElementById('trace-content');
+            traceContent.innerHTML = data.reasoning_trace.map(step =>
+                `<div class="trace-step">${step}</div>`
+            ).join('');
+
+            // Answer
+            let answerHtml = data.answer
+                .replace(/\[(\d+)\]/g, '<code>[$1]</code>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            document.getElementById('answer-content').innerHTML = answerHtml;
+
+            // Citations
+            const citationsList = document.getElementById('citations-list');
+            if (data.citations.length === 0) {
+                citationsList.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">No specific citations could be extracted. Try adding more documents.</p>';
+            } else {
+                citationsList.innerHTML = data.citations.map(c => {
+                    const entityType = c.entity_type || 'CONCEPT';
+                    return `
+                    <div class="citation-card">
+                        <span class="citation-ref">${c.ref}</span>
+                        <span class="entity-badge badge-${entityType}">${entityType}</span>
+                        <span class="citation-entity"><strong>${c.entity}</strong></span>
+                        <span class="citation-doc">📄 ${c.source_document}</span>
+                        <div class="citation-text">${c.source_text.substring(0, 400)}${c.source_text.length > 400 ? '…' : ''}</div>
+                        <div style="margin-top: 0.4rem; color: var(--ink-faint); font-size: 0.75rem;">
+                            Confidence: ${(c.confidence * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                `}).join('');
+            }
+        }
+    } catch (err) {
+        document.getElementById('answer-content').innerHTML = `<p style="color: var(--accent-3);">Error: ${err.message}</p>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
+
+// Load entities and relationships
+async function loadGraphData() {
+    try {
+        // Load entities
+        const entitiesResp = await fetch('/api/graph/entities');
+        const entitiesData = await entitiesResp.json();
+        const entityList = document.getElementById('entity-list');
+
+        if (entitiesData.entities.length === 0) {
+            entityList.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">No entities yet. Add documents first.</p>';
+        } else {
+            // Group by type
+            const byType = {};
+            entitiesData.entities.forEach(e => {
+                if (!byType[e.type]) byType[e.type] = [];
+                byType[e.type].push(e);
+            });
+
+            let html = '';
+            Object.keys(byType).sort().forEach(type => {
+                const colorMap = {
+                    'PERSON': 'var(--node-person)',
+                    'ORGANIZATION': 'var(--node-org)',
+                    'TECHNOLOGY': 'var(--node-tech)',
+                    'CONCEPT': 'var(--node-concept)',
+                    'EVENT': '#fb923c',
+                    'LOCATION': '#22d3ee'
+                };
+                html += `<div style="margin-bottom: 1rem;"><span style="color: ${colorMap[type] || 'var(--ink-muted)'}; font-weight: 600; font-size: 0.85rem;">● ${type} (${byType[type].length})</span></div>`;
+                byType[type].forEach(e => {
+                    html += `
+                        <div class="entity-item">
+                            <div class="entity-header">
+                                <span class="entity-badge badge-${e.type}">${e.type}</span>
+                                <span class="entity-name">${e.name}</span>
+                            </div>
+                            <div class="entity-desc">${e.description}</div>
+                        </div>
+                    `;
+                });
+            });
+            entityList.innerHTML = html;
+        }
+
+        // Load relationships
+        const relsResp = await fetch('/api/graph/relationships');
+        const relsData = await relsResp.json();
+        const relList = document.getElementById('relationship-list');
+
+        if (relsData.relationships.length === 0) {
+            relList.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">No relationships yet.</p>';
+        } else {
+            relList.innerHTML = relsData.relationships.map(r => `
+                <div class="relationship-item">
+                    <span class="rel-source">${r.source}</span>
+                    <span style="color: var(--ink-faint);"> → </span>
+                    <span class="rel-type">${r.rel_type}</span>
+                    <span style="color: var(--ink-faint);"> → </span>
+                    <span class="rel-target">${r.target}</span>
+                    ${r.description ? `<div style="font-size: 0.7rem; color: var(--ink-muted); margin-top: 0.25rem;">${r.description}</div>` : ''}
+                </div>
+            `).join('');
+        }
+    } catch (err) {
+        console.error('Error loading graph data:', err);
+    }
+}
+
+// Refresh buttons
+const refreshEntitiesBtn = document.getElementById('refresh-entities');
+const refreshRelationshipsBtn = document.getElementById('refresh-relationships');
+if (refreshEntitiesBtn) refreshEntitiesBtn.addEventListener('click', loadGraphData);
+if (refreshRelationshipsBtn) refreshRelationshipsBtn.addEventListener('click', loadGraphData);
+
+// Clear graph
+const clearGraphBtn = document.getElementById('clear-graph-btn');
+if (clearGraphBtn) {
+    clearGraphBtn.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to clear the entire graph? This cannot be undone.')) return;
+
+    try {
+        await fetch('/api/graph/clear', { method: 'POST' });
+        alert('Graph cleared!');
+        location.reload();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+    });
+}
+
+// Initial load
+loadGraphData();
+</script>
+{% endblock %}

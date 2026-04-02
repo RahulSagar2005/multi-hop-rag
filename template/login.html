@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Sign in — MultiHop RAG{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+    <div class="auth-bg">
+        <div class="auth-glow"></div>
+    </div>
+    <div class="auth-container">
+        <div class="auth-header">
+            <a href="{{ url_for('landing') }}" class="auth-back">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13 8H3M7 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Back
+            </a>
+            <div class="auth-logo">
+                <svg width="36" height="36" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="14" r="4" fill="currentColor"/><line x1="14" y1="1" x2="14" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="14" y1="21" x2="14" y2="27" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="14" x2="7" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="21" y1="14" x2="27" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <h1 class="auth-title">Welcome back</h1>
+            <p class="auth-subtitle">Sign in to your MultiHop RAG account</p>
+        </div>
+
+        <div class="auth-card">
+            {% if error %}
+            <div class="auth-error">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label for="email">Email address</label>
+                    <input type="email" id="email" name="email"
+                           class="form-input" placeholder="you@example.com"
+                           required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password"
+                           class="form-input" placeholder="Your password"
+                           required>
+                </div>
+                <button type="submit" class="btn-submit">
+                    Sign in
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </form>
+        </div>
+
+        <p class="auth-switch">
+            Don't have an account?
+            <a href="{{ url_for('register') }}">Create one free</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

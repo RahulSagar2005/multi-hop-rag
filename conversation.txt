@@ -1,0 +1,1439 @@
+╭─── Claude Code v2.1.90 ──────────────────────────────────────────────────────╮
+│                                           │ Tips for getting started         │
+│               Welcome back!               │ Run /init to create a CLAUDE.md… │
+│                                           │ ──────────────────────────────── │
+│                  ▐▛███▜▌                  │ Recent activity                  │
+│                 ▝▜█████▛▘                 │ No recent activity               │
+│                   ▘▘ ▝▝                   │                                  │
+│                                           │                                  │
+│     qwen3.5:cloud · API Usage Billing     │                                  │
+│   ~\Downloads\multihop_rag\multihop_rag   │                                  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ hiii                                                                          
+
+● Hi! How can I help you today?
+
+✻ Cooked for 48s
+
+❯ wht is this project about                                                     
+
+● Let me explore the project structure to understand what this repository is
+  about.
+
+  Searched for 2 patterns, listed 1 directory (ctrl+o to expand)
+
+● Let me read the main files to understand what this project does:
+
+  Read 3 files (ctrl+o to expand)
+
+● This is a MultiHop RAG (Retrieval-Augmented Generation) Knowledge Graph
+  project. Here's what it does:
+
+  Overview
+
+  The project combines knowledge graphs with LLM-powered retrieval to answer
+  questions with verifiable citations. It consists of two main applications:
+
+  1. Flask Web App (app.py)
+
+  - User authentication system (login/register)
+  - Landing page, dashboard, and profile pages
+  - SQLite database for user management
+
+  2. Streamlit Knowledge Graph App (knowledge_graph_rag.py)
+
+  The main RAG system with these features:
+
+  Document Processing:
+  - Uses Ollama (local LLM) to extract entities and relationships from documents
+  - Entities are categorized (PERSON, ORGANIZATION, TECHNOLOGY, CONCEPT, etc.)
+  - Stores everything in Neo4j graph database with full source provenance
+
+  Multi-Hop Querying:
+  - Searches the knowledge graph for relevant entities
+  - Traverses 1-4 hops from seed entities to find connected information
+  - Generates answers with inline citations linking back to source documents
+
+  Key Technologies:
+  - Neo4j - Graph database for storing entities/relationships
+  - Ollama - Local LLM for entity extraction and answer generation
+  - Streamlit - UI for the RAG system
+  - Flask - Web frontend with user auth
+
+  Sample use case: Ask "Who developed GraphRAG and what organization are they
+  from?" - the system traverses the graph to find connections and provides cited
+   answers.
+
+❯ i dont wnt streamlit i wnt the only flask application with all the            
+functionality of @knowledge_graph_rag.py can u make changes also generate in    
+readme.md file make sure that it should work                                    
+  ⎿  Read knowledge_graph_rag.py (775 lines)
+
+● I'll convert the Streamlit app into a Flask application with all the knowledge
+   graph RAG functionality. Let me create a plan and implement this.
+
+  Searched for 1 pattern, read 3 files (ctrl+o to expand)
+
+● Now I'll update the Flask app to include all the knowledge graph RAG
+  functionality, create the necessary templates, and update requirements.
+
+● Write(app.py)
+  ⎿  Added 597 lines, removed 24 lines
+        1 +"""                                                           
+        2 +Flask application for MultiHop RAG with Knowledge Graph       
+        3 +Combines user authentication with graph-based RAG functionalit
+          +y                                                             
+        4 +"""                                                           
+        5  from flask import (
+        2 -    Flask, render_template, request,                          
+        3 -    redirect, url_for, session, flash                         
+        6 +    Flask, render_template, request, redirect, url_for, sessio
+          +n, flash, jsonify                                             
+        7  )
+        8  from werkzeug.security import generate_password_hash, check_pa
+           ssword_hash
+        9  from database.db import init_db, create_user, get_user_by_emai
+           l, get_user_by_id
+       10  import os
+       11 +import hashlib                                                
+       12 +import re                                                     
+       13 +import json                                                   
+       14 +from typing import List, Tuple                                
+       15 +from dataclasses import dataclass, field, asdict              
+       16 +from ollama import Client as OllamaClient                     
+       17 +from neo4j import GraphDatabase                               
+       18  
+       19  app = Flask(__name__, template_folder='template')
+       20  app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-chan
+           ge-in-prod')
+       21  
+       12 -# Initialise database on startup                              
+       13 -with app.app_context():                                       
+       14 -    init_db()                                                 
+       22 +# ── Configuration ───────────────────────────────────────────
+          +─────────────                                                 
+       23 +NEO4J_URI      = os.environ.get("NEO4J_URI",      "bolt://loca
+          +lhost:7687")                                                  
+       24 +NEO4J_USER     = os.environ.get("NEO4J_USER",     "neo4j")    
+       25 +NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password") 
+       26 +OLLAMA_HOST    = os.environ.get("OLLAMA_HOST",    "http://loca
+          +lhost:11434")                                                 
+       27 +OLLAMA_MODEL   = os.environ.get("OLLAMA_MODEL",   "llama3.2") 
+       28  
+       29 +ollama_client = OllamaClient(host=OLLAMA_HOST)                
+       30  
+       17 -# ------------------------------------------------------------
+          ------- #                                                      
+       18 -# Helpers                                                     
+          -        #                                                     
+       19 -# ------------------------------------------------------------
+          ------- #                                                      
+       31 +SAMPLE_DOCS = {                                               
+       32 +    "AI Research Paper": """                                  
+       33 +        GraphRAG is a technique developed by Microsoft Researc
+          +h that combines knowledge graphs                              
+       34 +        with retrieval-augmented generation. Unlike traditiona
+          +l RAG which uses vector similarity,                           
+       35 +        GraphRAG builds a structured knowledge graph from docu
+          +ments, enabling multi-hop reasoning.                          
+       36 +        The technique was introduced by researchers including 
+          +Darren Edge and Ha Trinh.                                     
+       37 +        GraphRAG excels at answering complex questions that re
+          +quire connecting information                                  
+       38 +        from multiple sources, such as understanding relations
+          +hips between research projects.                               
+       39 +        It was published as a paper titled "From Local to Glob
+          +al: A Graph RAG Approach to                                   
+       40 +        Query-Focused Summarization" and has been widely adopt
+          +ed in enterprise AI systems.                                  
+       41 +    """,                                                      
+       42 +    "Company Report": """                                     
+       43 +        Acme Corp was founded in 2020 by Jane Smith and John D
+          +oe in San Francisco.                                          
+       44 +        The company develops AI-powered analytics tools for en
+          +terprise customers.                                           
+       45 +        Their flagship product, DataSense, uses machine learni
+          +ng to analyze business data.                                  
+       46 +        Jane Smith previously worked at Google as a senior eng
+          +ineer on the TensorFlow team.                                 
+       47 +        John Doe was a co-founder of StartupX, which was acqui
+          +red by Microsoft in 2019.                                     
+       48 +        Acme Corp raised $50 million in Series B funding led b
+          +y Sequoia Capital in 2023.                                    
+       49 +        The company partners with Neo4j to power their graph-b
+          +ased analytics features.                                      
+       50 +    """,                                                      
+       51 +    "Neo4j Documentation": """                                
+       52 +        Neo4j is a native graph database built to leverage dat
+          +a relationships.                                              
+       53 +        It uses the Cypher query language, designed specifical
+          +ly for graph traversal.                                       
+       54 +        Neo4j supports ACID transactions and is used for fraud
+          + detection, recommendation                                    
+       55 +        engines, knowledge graphs, and network analysis. The A
+          +POC plugin library extends                                    
+       56 +        Neo4j with hundreds of additional procedures and funct
+          +ions. Neo4j Aura is the                                       
+       57 +        fully managed cloud version, while the community editi
+          +on is open source.                                            
+       58 +        Emil Eifrem co-founded Neo4j in 2007 and serves as CEO
+          +.                                                             
+       59 +    """,                                                      
+       60 +}                                                             
+       61  
+       62 +                                                              
+       63 +# ── Data Models ─────────────────────────────────────────────
+          +───────────────                                               
+       64 +                                                              
+       65 +@dataclass                                                    
+       66 +class Entity:                                                 
+       67 +    id: str                                                   
+       68 +    name: str                                                 
+       69 +    entity_type: str                                          
+       70 +    description: str                                          
+       71 +    source_doc: str                                           
+       72 +    source_chunk: str                                         
+       73 +                                                              
+       74 +                                                              
+       75 +@dataclass                                                    
+       76 +class Relationship:                                           
+       77 +    source: str                                               
+       78 +    target: str                                               
+       79 +    relation_type: str                                        
+       80 +    description: str                                          
+       81 +    source_doc: str                                           
+       82 +                                                              
+       83 +                                                              
+       84 +@dataclass                                                    
+       85 +class Citation:                                               
+       86 +    ref: str                                                  
+       87 +    source_document: str                                      
+       88 +    source_text: str                                          
+       89 +    entity: str                                               
+       90 +    confidence: float                                         
+       91 +    reasoning_path: List[str] = field(default_factory=list)   
+       92 +                                                              
+       93 +                                                              
+       94 +@dataclass                                                    
+       95 +class AnswerWithCitations:                                    
+       96 +    answer: str                                               
+       97 +    citations: List[Citation]                                 
+       98 +    reasoning_trace: List[str]                                
+       99 +                                                              
+      100 +                                                              
+      101 +# ── Database Initialization ─────────────────────────────────
+          +──────────────                                                
+      102 +                                                              
+      103 +def get_graph_driver(uri=None, user=None, password=None):     
+      104 +    """Get Neo4j driver with optional override params."""     
+      105 +    uri = uri or NEO4J_URI                                    
+      106 +    user = user or NEO4J_USER                                 
+      107 +    password = password or NEO4J_PASSWORD                     
+      108 +    return GraphDatabase.driver(uri, auth=(user, password))   
+      109 +                                                              
+      110 +                                                              
+      111 +# ── Helpers ─────────────────────────────────────────────────
+          +──────────────                                                
+      112 +                                                              
+      113  def current_user():
+      114      uid = session.get('user_id')
+      115      if uid:
+     ...
+      117      return None
+      118  
+      119  
+       28 -# ------------------------------------------------------------
+          ------- #                                                      
+       29 -# Public routes                                               
+          -         #                                                    
+       30 -# ------------------------------------------------------------
+          ------- #                                                      
+      120 +def get_graph_stats(driver):                                  
+      121 +    """Get knowledge graph statistics."""                     
+      122 +    with driver.session() as s:                               
+      123 +        nodes = s.run("MATCH (n) RETURN count(n) as c").single
+          +()["c"]                                                       
+      124 +        rels = s.run("MATCH ()-[r]->() RETURN count(r) as c").
+          +single()["c"]                                                 
+      125 +        docs = s.run("MATCH (n) RETURN collect(DISTINCT n.sour
+          +ce_doc) as d").single()["d"]                                  
+      126 +    return {"nodes": nodes, "relationships": rels, "documents"
+          +: [d for d in docs if d]}                                     
+      127  
+      128 +                                                              
+      129 +# ── Knowledge Graph Operations ──────────────────────────────
+          +──────────────                                                
+      130 +                                                              
+      131 +def clear_graph(driver):                                      
+      132 +    """Delete all nodes and relationships."""                 
+      133 +    with driver.session() as s:                               
+      134 +        s.run("MATCH (n) DETACH DELETE n")                    
+      135 +                                                              
+      136 +                                                              
+      137 +def add_entity(driver, entity: Entity):                       
+      138 +    """Add an entity to the graph."""                         
+      139 +    with driver.session() as s:                               
+      140 +        s.run(                                                
+      141 +            """                                               
+      142 +            MERGE (e:Entity {id: $id})                        
+      143 +            SET e.name        = $name,                        
+      144 +                e.type        = $entity_type,                 
+      145 +                e.description = $description,                 
+      146 +                e.source_doc  = $source_doc,                  
+      147 +                e.source_chunk= $source_chunk                 
+      148 +            """,                                              
+      149 +            id=entity.id, name=entity.name, entity_type=entity
+          +.entity_type,                                                 
+      150 +            description=entity.description, source_doc=entity.
+          +source_doc,                                                   
+      151 +            source_chunk=entity.source_chunk,                 
+      152 +        )                                                     
+      153 +                                                              
+      154 +                                                              
+      155 +def add_relationship(driver, rel: Relationship):              
+      156 +    """Add a relationship to the graph."""                    
+      157 +    with driver.session() as s:                               
+      158 +        s.run(                                                
+      159 +            """                                               
+      160 +            MATCH (a:Entity {name: $source})                  
+      161 +            MATCH (b:Entity {name: $target})                  
+      162 +            MERGE (a)-[r:RELATES_TO {type: $rel_type}]->(b)   
+      163 +            SET r.description = $description,                 
+      164 +                r.source_doc  = $source_doc                   
+      165 +            """,                                              
+      166 +            source=rel.source, target=rel.target, rel_type=rel
+          +.relation_type,                                               
+      167 +            description=rel.description, source_doc=rel.source
+          +_doc,                                                         
+      168 +        )                                                     
+      169 +                                                              
+      170 +                                                              
+      171 +def find_related_entities(driver, entity_name: str, hops: int 
+          += 2) -> List[dict]:                                           
+      172 +    """Find entities related to a given entity via multi-hop t
+          +raversal."""                                                  
+      173 +    with driver.session() as s:                               
+      174 +        result = s.run(                                       
+      175 +            f"""                                              
+      176 +            MATCH path = (start:Entity)-[*1..{hops}]-(related:
+          +Entity)                                                       
+      177 +            WHERE toLower(start.name) CONTAINS toLower($name) 
+      178 +               OR toLower(start.description) CONTAINS toLower(
+          +$name)                                                        
+      179 +            RETURN DISTINCT                                   
+      180 +                related.name         AS name,                 
+      181 +                related.description  AS description,          
+      182 +                related.source_doc   AS source,               
+      183 +                related.source_chunk AS chunk,                
+      184 +                related.type         AS type,                 
+      185 +                [r IN relationships(path) | r.description] AS 
+          +path_descriptions                                             
+      186 +            LIMIT 25                                          
+      187 +            """,                                              
+      188 +            name=entity_name,                                 
+      189 +        )                                                     
+      190 +        return [dict(r) for r in result]                      
+      191 +                                                              
+      192 +                                                              
+      193 +def semantic_search(driver, query: str) -> List[dict]:        
+      194 +    """Search for entities matching query keywords."""        
+      195 +    words = [w.strip().lower() for w in query.split() if len(w
+          +.strip()) > 3]                                                
+      196 +    with driver.session() as s:                               
+      197 +        result = s.run(                                       
+      198 +            """                                               
+      199 +            MATCH (e:Entity)                                  
+      200 +            WHERE ANY(word IN $words WHERE                    
+      201 +                toLower(e.name)        CONTAINS word OR       
+      202 +                toLower(e.description) CONTAINS word          
+      203 +            )                                                 
+      204 +            RETURN e.name         AS name,                    
+      205 +                   e.description  AS description,             
+      206 +                   e.source_doc   AS source,                  
+      207 +                   e.source_chunk AS chunk,                   
+      208 +                   e.type         AS type                     
+      209 +            LIMIT 10                                          
+      210 +            """,                                              
+      211 +            words=words,                                      
+      212 +        )                                                     
+      213 +        return [dict(r) for r in result]                      
+      214 +                                                              
+      215 +                                                              
+      216 +def get_all_entities(driver) -> List[dict]:                   
+      217 +    """Get all entities from the graph."""                    
+      218 +    with driver.session() as s:                               
+      219 +        result = s.run(                                       
+      220 +            """                                               
+      221 +            MATCH (e:Entity)                                  
+      222 +            RETURN e.name AS name, e.type AS type,            
+      223 +                   e.description AS description, e.source_doc 
+          +AS source                                                     
+      224 +            ORDER BY e.type, e.name                           
+      225 +            """                                               
+      226 +        )                                                     
+      227 +        return [dict(r) for r in result]                      
+      228 +                                                              
+      229 +                                                              
+      230 +def get_all_relationships(driver) -> List[dict]:              
+      231 +    """Get all relationships from the graph."""               
+      232 +    with driver.session() as s:                               
+      233 +        result = s.run(                                       
+      234 +            """                                               
+      235 +            MATCH (a:Entity)-[r:RELATES_TO]->(b:Entity)       
+      236 +            RETURN a.name AS source, r.type AS rel_type,      
+      237 +                   b.name AS target, r.description AS descript
+          +ion                                                           
+      238 +            """                                               
+      239 +        )                                                     
+      240 +        return [dict(r) for r in result]                      
+      241 +                                                              
+      242 +                                                              
+      243 +# ── LLM Entity Extraction ───────────────────────────────────
+          +───────────────                                               
+      244 +                                                              
+      245 +def extract_entities_with_llm(                                
+      246 +    text: str, source_doc: str, model: str = OLLAMA_MODEL     
+      247 +) -> Tuple[List[Entity], List[Relationship]]:                 
+      248 +    """Extract entities and relationships from text using LLM.
+          +"""                                                           
+      249 +    prompt = f"""Analyze the following text carefully and extr
+          +act structured knowledge.                                     
+      250 +                                                              
+      251 +Extract:                                                      
+      252 +1. KEY ENTITIES — people, organizations, technologies, concept
+          +s, events, locations.                                         
+      253 +2. RELATIONSHIPS — directed connections between those entities
+          +.                                                             
+      254 +                                                              
+      255 +For each entity provide:                                      
+      256 +  - name: canonical name (e.g. "Microsoft Research", not "it" 
+          +or "they")                                                    
+      257 +  - type: one of PERSON | ORGANIZATION | TECHNOLOGY | CONCEPT 
+          +| EVENT | LOCATION                                            
+      258 +  - description: one concise sentence from the text describing
+          + this entity                                                  
+      259 +                                                              
+      260 +For each relationship provide:                                
+      261 +  - source: exact name of source entity                       
+      262 +  - target: exact name of target entity                       
+      263 +  - type: short snake_case verb phrase (e.g. WORKS_FOR, CREATE
+          +D, USES, PART_OF, LOCATED_IN, FUNDED_BY)                      
+      264 +  - description: one sentence explaining the relationship     
+      265 +                                                              
+      266 +TEXT:                                                         
+      267 +\"\"\"                                                        
+      268 +{text.strip()}                                                
+      269 +\"\"\"                                                        
+      270 +                                                              
+      271 +Respond ONLY with valid JSON — no markdown, no explanation:   
+      272 +{{                                                            
+      273 +  "entities": [                                               
+      274 +    {{"name": "...", "type": "...", "description": "..."}}    
+      275 +  ],                                                          
+      276 +  "relationships": [                                          
+      277 +    {{"source": "...", "target": "...", "type": "...", "descri
+          +ption": "..."}}                                               
+      278 +  ]                                                           
+      279 +}}"""                                                         
+      280 +                                                              
+      281 +    try:                                                      
+      282 +        response = ollama_client.chat(                        
+      283 +            model=model,                                      
+      284 +            messages=[{"role": "user", "content": prompt}],   
+      285 +            format="json",                                    
+      286 +        )                                                     
+      287 +        raw = response["message"]["content"]                  
+      288 +        raw = re.sub(r"```(?:json)?|```", "", raw).strip()    
+      289 +        data = json.loads(raw)                                
+      290 +                                                              
+      291 +        entities = []                                         
+      292 +        for e in data.get("entities", []):                    
+      293 +            if not e.get("name"):                             
+      294 +                continue                                      
+      295 +            eid = hashlib.md5(f"{e['name']}_{source_doc}".enco
+          +de()).hexdigest()[:12]                                        
+      296 +            entities.append(Entity(                           
+      297 +                id=eid,                                       
+      298 +                name=e["name"],                               
+      299 +                entity_type=e.get("type", "CONCEPT"),         
+      300 +                description=e.get("description", ""),         
+      301 +                source_doc=source_doc,                        
+      302 +                source_chunk=text.strip()[:300] + ("..." if le
+          +n(text) > 300 else ""),                                       
+      303 +            ))                                                
+      304 +                                                              
+      305 +        relationships = []                                    
+      306 +        entity_names = {en.name for en in entities}           
+      307 +        for r in data.get("relationships", []):               
+      308 +            if r.get("source") in entity_names and r.get("targ
+          +et") in entity_names:                                         
+      309 +                relationships.append(Relationship(            
+      310 +                    source=r["source"],                       
+      311 +                    target=r["target"],                       
+      312 +                    relation_type=r.get("type", "RELATED_TO"),
+      313 +                    description=r.get("description", ""),     
+      314 +                    source_doc=source_doc,                    
+      315 +                ))                                            
+      316 +                                                              
+      317 +        return entities, relationships                        
+      318 +                                                              
+      319 +    except Exception as exc:                                  
+      320 +        return [], []                                         
+      321 +                                                              
+      322 +                                                              
+      323 +# ── Multi-hop RAG with Citations ────────────────────────────
+          +───────────────                                               
+      324 +                                                              
+      325 +def generate_answer_with_citations(                           
+      326 +    query: str,                                               
+      327 +    driver,                                                   
+      328 +    hops: int = 2,                                            
+      329 +    model: str = OLLAMA_MODEL,                                
+      330 +) -> AnswerWithCitations:                                     
+      331 +    """Generate an answer with citations by traversing the kno
+          +wledge graph."""                                              
+      332 +    trace: List[str] = []                                     
+      333 +    citations: List[Citation] = []                            
+      334 +                                                              
+      335 +    # Step 1 — Semantic search                                
+      336 +    trace.append(f"🔍 **Step 1** — Searching knowledge graph f
+          +or: `{query}`")                                               
+      337 +    seeds = semantic_search(driver, query)                    
+      338 +                                                              
+      339 +    if not seeds:                                             
+      340 +        trace.append("❌ No matching entities found in the gra
+          +ph.")                                                         
+      341 +        return AnswerWithCitations(                           
+      342 +            answer="I couldn't find relevant information in th
+          +e knowledge graph. "                                          
+      343 +                   "Please add some documents first.",        
+      344 +            citations=[],                                     
+      345 +            reasoning_trace=trace,                            
+      346 +        )                                                     
+      347 +                                                              
+      348 +    trace.append(f"📍 Found **{len(seeds)}** seed entities: " 
+      349 +                 + ", ".join(f"`{s['name']}`" for s in seeds[:
+          +5]))                                                          
+      350 +                                                              
+      351 +    # Step 2 — Multi-hop expansion                            
+      352 +    trace.append(f"🔗 **Step 2** — Expanding {hops} hops from 
+          +each seed entity…")                                           
+      353 +    all_context: List[dict] = []                              
+      354 +    seen_names: set = set()                                   
+      355 +                                                              
+      356 +    for seed in seeds[:4]:                                    
+      357 +        related = find_related_entities(driver, seed["name"], 
+          +hops=hops)                                                    
+      358 +        new = [r for r in related if r["name"] not in seen_nam
+          +es]                                                           
+      359 +        for r in new:                                         
+      360 +            seen_names.add(r["name"])                         
+      361 +            all_context.append(r)                             
+      362 +        trace.append(f"   └─ `{seed['name']}` → {len(new)} new
+          + related entities")                                           
+      363 +                                                              
+      364 +    # Also include seeds themselves                           
+      365 +    for s in seeds:                                           
+      366 +        if s["name"] not in seen_names:                       
+      367 +            all_context.append(s)                             
+      368 +            seen_names.add(s["name"])                         
+      369 +                                                              
+      370 +    trace.append(f"📊 **Step 3** — Built context from **{len(a
+          +ll_context)}** entities")                                     
+      371 +                                                              
+      372 +    # Step 3 — Build numbered source map                      
+      373 +    context_lines: List[str] = []                             
+      374 +    source_map: dict = {}                                     
+      375 +                                                              
+      376 +    for i, ctx in enumerate(all_context):                     
+      377 +        ref = f"[{i + 1}]"                                    
+      378 +        context_lines.append(                                 
+      379 +            f"{ref} Entity: {ctx['name']} ({ctx.get('type','?'
+          +)})\n"                                                        
+      380 +            f"    Description: {ctx['description']}\n"        
+      381 +            f"    Source: {ctx['source']}"                    
+      382 +        )                                                     
+      383 +        source_map[ref] = ctx                                 
+      384 +                                                              
+      385 +    context_text = "\n\n".join(context_lines)                 
+      386 +                                                              
+      387 +    # Step 4 — Generate answer                                
+      388 +    trace.append("🤖 **Step 4** — Generating cited answer with
+          + LLM…")                                                       
+      389 +                                                              
+      390 +    answer_prompt = f"""You are a research assistant. Answer t
+          +he question using ONLY the provided knowledge graph context.  
+      391 +                                                              
+      392 +RULES:                                                        
+      393 +- Cite every factual claim with its reference number [N].     
+      394 +- Use multiple citations per sentence when the claim draws fro
+          +m multiple sources.                                           
+      395 +- Do not invent information not present in the context.       
+      396 +- Be concise and precise.                                     
+      397 +                                                              
+      398 +KNOWLEDGE GRAPH CONTEXT:                                      
+      399 +{context_text}                                                
+      400 +                                                              
+      401 +QUESTION: {query}                                             
+      402 +                                                              
+      403 +Write a thorough answer with inline citations [1], [2], etc.:"
+          +""                                                            
+      404 +                                                              
+      405 +    try:                                                      
+      406 +        response = ollama_client.chat(                        
+      407 +            model=model,                                      
+      408 +            messages=[{"role": "user", "content": answer_promp
+          +t}],                                                          
+      409 +        )                                                     
+      410 +        answer = response["message"]["content"].strip()       
+      411 +                                                              
+      412 +        # Step 5 — Extract and build citation objects         
+      413 +        refs_used = sorted(set(re.findall(r"\[(\d+)\]", answer
+          +)), key=int)                                                  
+      414 +        for ref_num in refs_used:                             
+      415 +            ref_key = f"[{ref_num}]"                          
+      416 +            if ref_key in source_map:                         
+      417 +                ctx = source_map[ref_key]                     
+      418 +                citations.append(Citation(                    
+      419 +                    ref=ref_key,                              
+      420 +                    source_document=ctx.get("source", "Unknown
+          +"),                                                           
+      421 +                    source_text=ctx.get("chunk", ctx.get("desc
+          +ription", "")),                                               
+      422 +                    entity=ctx.get("name", ""),               
+      423 +                    confidence=0.90,                          
+      424 +                    reasoning_path=ctx.get("path_descriptions"
+          +) or [],                                                      
+      425 +                ))                                            
+      426 +                                                              
+      427 +        trace.append(f"✅ Answer generated with **{len(citatio
+          +ns)}** verified citations.")                                  
+      428 +                                                              
+      429 +        return AnswerWithCitations(answer=answer, citations=ci
+          +tations, reasoning_trace=trace)                               
+      430 +                                                              
+      431 +    except Exception as exc:                                  
+      432 +        trace.append(f"❌ LLM error: {exc}")                  
+      433 +        return AnswerWithCitations(                           
+      434 +            answer=f"Error generating answer: {exc}",         
+      435 +            citations=[],                                     
+      436 +            reasoning_trace=trace,                            
+      437 +        )                                                     
+      438 +                                                              
+      439 +                                                              
+      440 +# ── Routes ──────────────────────────────────────────────────
+          +──────────────                                                
+      441 +                                                              
+      442  @app.route("/")
+      443  def landing():
+      444      return render_template("landing.html", user=current_user()
+           )
+     ...
+      451  
+      452      error = None
+      453      if request.method == "POST":
+       44 -        name     = request.form.get("name", "").strip()       
+       45 -        email    = request.form.get("email", "").strip().lower
+          -()                                                            
+      454 +        name = request.form.get("name", "").strip()           
+      455 +        email = request.form.get("email", "").strip().lower() 
+      456          password = request.form.get("password", "")
+      457  
+      458          if not name or not email or not password:
+     ...
+      466              create_user(name, email, hashed)
+      467              user = get_user_by_email(email)
+      468              session['user_id'] = user['id']
+       59 -            flash("Welcome to MultiHop RAG! 🎉", "success")   
+      469 +            flash("Welcome to MultiHop RAG!", "success")      
+      470              return redirect(url_for('dashboard'))
+      471  
+      472      return render_template("register.html", error=error)
+     ...
+      479  
+      480      error = None
+      481      if request.method == "POST":
+       72 -        email    = request.form.get("email", "").strip().lower
+          -()                                                            
+      482 +        email = request.form.get("email", "").strip().lower() 
+      483          password = request.form.get("password", "")
+       74 -        user     = get_user_by_email(email)                   
+      484 +        user = get_user_by_email(email)                       
+      485  
+      486          if not user or not check_password_hash(user['password'
+           ], password):
+      487              error = "Invalid email or password."
+     ...
+      500      return redirect(url_for('landing'))
+      501  
+      502  
+       93 -# ------------------------------------------------------------
+          ------- #                                                      
+       94 -# Protected routes                                            
+          -         #                                                    
+       95 -# ------------------------------------------------------------
+          ------- #                                                      
+       96 -                                                              
+      503  @app.route("/dashboard")
+      504  def dashboard():
+      505      user = current_user()
+      506      if not user:
+      507          return redirect(url_for('login'))
+      102 -    return render_template("dashboard.html", user=user)       
+      508  
+      509 +    # Test Neo4j connection and get stats                     
+      510 +    neo4j_connected = False                                   
+      511 +    graph_stats = None                                        
+      512 +    try:                                                      
+      513 +        driver = get_graph_driver()                           
+      514 +        with driver.session() as s:                           
+      515 +            s.run("RETURN 1")                                 
+      516 +        neo4j_connected = True                                
+      517 +        graph_stats = get_graph_stats(driver)                 
+      518 +        driver.close()                                        
+      519 +    except Exception:                                         
+      520 +        neo4j_connected = False                               
+      521  
+      522 +    return render_template("dashboard.html", user=user, neo4j_
+          +connected=neo4j_connected, graph_stats=graph_stats)           
+      523 +                                                              
+      524 +                                                              
+      525  @app.route("/profile")
+      526  def profile():
+      527      user = current_user()
+     ...
+      530      return render_template("profile.html", user=user)
+      531  
+      532  
+      113 -# ------------------------------------------------------------
+          ------- #                                                      
+      114 -# Run                                                         
+          -         #                                                    
+      115 -# ------------------------------------------------------------
+          ------- #                                                      
+      533 +# ── Knowledge Graph Routes ──────────────────────────────────
+          +──────────────                                                
+      534  
+      535 +@app.route("/knowledge-graph")                                
+      536 +def knowledge_graph():                                        
+      537 +    """Main knowledge graph interface."""                     
+      538 +    user = current_user()                                     
+      539 +    if not user:                                              
+      540 +        return redirect(url_for('login'))                     
+      541 +                                                              
+      542 +    # Test Neo4j connection                                   
+      543 +    neo4j_connected = False                                   
+      544 +    graph_stats = None                                        
+      545 +    try:                                                      
+      546 +        driver = get_graph_driver()                           
+      547 +        with driver.session() as s:                           
+      548 +            s.run("RETURN 1")                                 
+      549 +        neo4j_connected = True                                
+      550 +        graph_stats = get_graph_stats(driver)                 
+      551 +        driver.close()                                        
+      552 +    except Exception:                                         
+      553 +        neo4j_connected = False                               
+      554 +                                                              
+      555 +    return render_template("knowledge_graph.html", user=user, 
+      556 +                         neo4j_connected=neo4j_connected,     
+      557 +                         graph_stats=graph_stats,             
+      558 +                         sample_docs=list(SAMPLE_DOCS.keys()))
+      559 +                                                              
+      560 +                                                              
+      561 +@app.route("/api/extract-entities", methods=["POST"])         
+      562 +def api_extract_entities():                                   
+      563 +    """Extract entities and relationships from document text."
+          +""                                                            
+      564 +    user = current_user()                                     
+      565 +    if not user:                                              
+      566 +        return jsonify({"error": "Unauthorized"}), 401        
+      567 +                                                              
+      568 +    data = request.get_json()                                 
+      569 +    doc_name = data.get("doc_name", "Untitled")               
+      570 +    doc_text = data.get("text", "")                           
+      571 +    model = data.get("model", OLLAMA_MODEL)                   
+      572 +                                                              
+      573 +    if not doc_text.strip():                                  
+      574 +        return jsonify({"error": "No text provided"}), 400    
+      575 +                                                              
+      576 +    entities, relationships = extract_entities_with_llm(doc_te
+          +xt, doc_name, model)                                          
+      577 +                                                              
+      578 +    # Store in database                                       
+      579 +    try:                                                      
+      580 +        driver = get_graph_driver()                           
+      581 +        for e in entities:                                    
+      582 +            add_entity(driver, e)                             
+      583 +        for r in relationships:                               
+      584 +            add_relationship(driver, r)                       
+      585 +        driver.close()                                        
+      586 +    except Exception as e:                                    
+      587 +        return jsonify({"error": f"Database error: {str(e)}"})
+          +, 500                                                         
+      588 +                                                              
+      589 +    return jsonify({                                          
+      590 +        "entities": [asdict(e) for e in entities],            
+      591 +        "relationships": [asdict(r) for r in relationships]   
+      592 +    })                                                        
+      593 +                                                              
+      594 +                                                              
+      595 +@app.route("/api/ask", methods=["POST"])                      
+      596 +def api_ask():                                                
+      597 +    """Ask a question and get an answer with citations."""    
+      598 +    user = current_user()                                     
+      599 +    if not user:                                              
+      600 +        return jsonify({"error": "Unauthorized"}), 401        
+      601 +                                                              
+      602 +    data = request.get_json()                                 
+      603 +    query = data.get("query", "")                             
+      604 +    hops = data.get("hops", 2)                                
+      605 +    model = data.get("model", OLLAMA_MODEL)                   
+      606 +                                                              
+      607 +    if not query.strip():                                     
+      608 +        return jsonify({"error": "No query provided"}), 400   
+      609 +                                                              
+      610 +    try:                                                      
+      611 +        driver = get_graph_driver()                           
+      612 +        result = generate_answer_with_citations(query, driver,
+          + hops=hops, model=model)                                      
+      613 +        driver.close()                                        
+      614 +                                                              
+      615 +        return jsonify({                                      
+      616 +            "answer": result.answer,                          
+      617 +            "citations": [asdict(c) for c in result.citations]
+          +,                                                             
+      618 +            "reasoning_trace": result.reasoning_trace         
+      619 +        })                                                    
+      620 +    except Exception as e:                                    
+      621 +        return jsonify({"error": str(e)}), 500                
+      622 +                                                              
+      623 +                                                              
+      624 +@app.route("/api/graph/stats")                                
+      625 +def api_graph_stats():                                        
+      626 +    """Get knowledge graph statistics."""                     
+      627 +    user = current_user()                                     
+      628 +    if not user:                                              
+      629 +        return jsonify({"error": "Unauthorized"}), 401        
+      630 +                                                              
+      631 +    try:                                                      
+      632 +        driver = get_graph_driver()                           
+      633 +        stats = get_graph_stats(driver)                       
+      634 +        driver.close()                                        
+      635 +        return jsonify(stats)                                 
+      636 +    except Exception as e:                                    
+      637 +        return jsonify({"error": str(e)}), 500                
+      638 +                                                              
+      639 +                                                              
+      640 +@app.route("/api/graph/entities")                             
+      641 +def api_graph_entities():                                     
+      642 +    """Get all entities from the graph."""                    
+      643 +    user = current_user()                                     
+      644 +    if not user:                                              
+      645 +        return jsonify({"error": "Unauthorized"}), 401        
+      646 +                                                              
+      647 +    try:                                                      
+      648 +        driver = get_graph_driver()                           
+      649 +        entities = get_all_entities(driver)                   
+      650 +        driver.close()                                        
+      651 +        return jsonify({"entities": entities})                
+      652 +    except Exception as e:                                    
+      653 +        return jsonify({"error": str(e)}), 500                
+      654 +                                                              
+      655 +                                                              
+      656 +@app.route("/api/graph/relationships")                        
+      657 +def api_graph_relationships():                                
+      658 +    """Get all relationships from the graph."""               
+      659 +    user = current_user()                                     
+      660 +    if not user:                                              
+      661 +        return jsonify({"error": "Unauthorized"}), 401        
+      662 +                                                              
+      663 +    try:                                                      
+      664 +        driver = get_graph_driver()                           
+      665 +        relationships = get_all_relationships(driver)         
+      666 +        driver.close()                                        
+      667 +        return jsonify({"relationships": relationships})      
+      668 +    except Exception as e:                                    
+      669 +        return jsonify({"error": str(e)}), 500                
+      670 +                                                              
+      671 +                                                              
+      672 +@app.route("/api/graph/clear", methods=["POST"])              
+      673 +def api_graph_clear():                                        
+      674 +    """Clear all data from the graph."""                      
+      675 +    user = current_user()                                     
+      676 +    if not user:                                              
+      677 +        return jsonify({"error": "Unauthorized"}), 401        
+      678 +                                                              
+      679 +    try:                                                      
+      680 +        driver = get_graph_driver()                           
+      681 +        clear_graph(driver)                                   
+      682 +        driver.close()                                        
+      683 +        return jsonify({"success": True})                     
+      684 +    except Exception as e:                                    
+      685 +        return jsonify({"error": str(e)}), 500                
+      686 +                                                              
+      687 +                                                              
+      688 +# ── Run ─────────────────────────────────────────────────────
+          +──────────────                                                
+      689 +                                                              
+      690  if __name__ == "__main__":
+      691      app.run(debug=True, port=5001)
+  Read 1 file (ctrl+o to expand)
+
+● Now I'll create the knowledge_graph.html template with all the Streamlit
+  functionality:
+
+● Write(template\knowledge_graph.html)
+  ⎿  Wrote 982 lines to template\knowledge_graph.html
+       1 {% extends "base.html" %}
+       2 {% block title %}Knowledge Graph — MultiHop RAG{% endblock %}
+       3 
+       4 {% block head %}
+       5 <style>
+       6 /* Knowledge Graph Page Styles */
+       7 .kg-container {
+       8     max-width: 1200px;
+       9     margin: 0 auto;
+      10     padding: 2rem;
+     … +972 lines (ctrl+o to expand)
+
+● Now I'll update the dashboard template and requirements.txt:
+
+● Update(template\dashboard.html)
+  ⎿  Added 27 lines, removed 10 lines
+       6      <div class="dash-inner">
+       7          <div class="dash-header">
+       8              <div>
+       9 -                <h1 class="dash-title">Welcome, {{ user.name.sp
+         -lit()[0] }} 👋</h1>                                            
+       9 +                <h1 class="dash-title">Welcome, {{ user.name.sp
+         +lit()[0] }}!</h1>                                              
+      10                  <p class="dash-subtitle">Your Knowledge Graph R
+          AG workspace</p>
+      11              </div>
+      12 -            <a href="http://localhost:8501" target="_blank" cla
+         -ss="btn-primary">                                              
+      13 -                Open Streamlit App                             
+      12 +            <a href="{{ url_for('knowledge_graph') }}" class="b
+         +tn-primary">                                                   
+      13 +                Open Knowledge Graph                           
+      14                  <svg width="14" height="14" viewBox="0 0 14 14"
+           fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor
+          " stroke-width="1.5" stroke-linecap="round" stroke-linejoin="ro
+          und"/></svg>
+      15              </a>
+      16          </div>
+      17  
+      18 +        {% if neo4j_connected and graph_stats %}               
+      19 +        <div style="display: grid; grid-template-columns: repea
+         +t(3, 1fr); gap: 1rem; margin-bottom: 2rem;">                   
+      20 +            <div style="background: var(--bg-card); border: 1px
+         + solid var(--border); border-radius: var(--radius-md); padding:
+         + 1.5rem; text-align: center;">                                 
+      21 +                <div style="font-family: var(--font-display); f
+         +ont-size: 2rem; font-weight: 700; color: var(--accent);">{{ gra
+         +ph_stats.nodes }}</div>                                        
+      22 +                <div style="font-size: 0.85rem; color: var(--in
+         +k-muted); margin-top: 0.25rem;">Entities</div>                 
+      23 +            </div>                                             
+      24 +            <div style="background: var(--bg-card); border: 1px
+         + solid var(--border); border-radius: var(--radius-md); padding:
+         + 1.5rem; text-align: center;">                                 
+      25 +                <div style="font-family: var(--font-display); f
+         +ont-size: 2rem; font-weight: 700; color: var(--accent);">{{ gra
+         +ph_stats.relationships }}</div>                                
+      26 +                <div style="font-size: 0.85rem; color: var(--in
+         +k-muted); margin-top: 0.25rem;">Relationships</div>            
+      27 +            </div>                                             
+      28 +            <div style="background: var(--bg-card); border: 1px
+         + solid var(--border); border-radius: var(--radius-md); padding:
+         + 1.5rem; text-align: center;">                                 
+      29 +                <div style="font-family: var(--font-display); f
+         +ont-size: 2rem; font-weight: 700; color: var(--accent);">{{ gra
+         +ph_stats.documents|length }}</div>                             
+      30 +                <div style="font-size: 0.85rem; color: var(--in
+         +k-muted); margin-top: 0.25rem;">Documents</div>                
+      31 +            </div>                                             
+      32 +        </div>                                                 
+      33 +        {% endif %}                                            
+      34 +                                                               
+      35          <div class="dash-grid">
+      36              <div class="dash-card">
+      37                  <div class="dash-card__icon">📄</div>
+      38                  <h3 class="dash-card__title">Add Documents</h3>
+      22 -                <p class="dash-card__body">Paste any text or pa
+         -per into the Streamlit app to extract entities and build your k
+         -nowledge graph.</p>                                            
+      23 -                <a href="http://localhost:8501" target="_blank"
+         - class="dash-card__link">Go to Streamlit →</a>                 
+      39 +                <p class="dash-card__body">Paste any text or pa
+         +per to extract entities and build your knowledge graph. The LLM
+         + identifies people, organizations, technologies, and relationsh
+         +ips.</p>                                                       
+      40 +                <a href="{{ url_for('knowledge_graph') }}#add-d
+         +ocs" class="dash-card__link">Add Documents →</a>               
+      41              </div>
+      42              <div class="dash-card">
+      43                  <div class="dash-card__icon">🔍</div>
+      44                  <h3 class="dash-card__title">Ask Questions</h3>
+      45                  <p class="dash-card__body">Query your graph wit
+          h multi-hop traversal. Get answers with inline [1][2] citations
+           traceable to source documents.</p>
+      29 -                <a href="http://localhost:8501" target="_blank"
+         - class="dash-card__link">Start querying →</a>                  
+      46 +                <a href="{{ url_for('knowledge_graph') }}#ask-c
+         +ite" class="dash-card__link">Ask Questions →</a>               
+      47              </div>
+      48              <div class="dash-card">
+      49                  <div class="dash-card__icon">🔬</div>
+      50                  <h3 class="dash-card__title">View Graph</h3>
+      34 -                <p class="dash-card__body">Inspect the entity a
+         -nd relationship structure of your knowledge graph in Neo4j Brow
+         -ser.</p>                                                       
+      35 -                <a href="http://localhost:7474" target="_blank"
+         - class="dash-card__link">Open Neo4j →</a>                      
+      51 +                <p class="dash-card__body">Inspect the entity a
+         +nd relationship structure of your knowledge graph. Browse entit
+         +ies by type and explore connections.</p>                       
+      52 +                <a href="{{ url_for('knowledge_graph') }}#explo
+         +re" class="dash-card__link">Explore Graph →</a>                
+      53              </div>
+      54          </div>
+      55  
+     ...
+      73                  <div class="check-item">
+      74                      <span class="check-icon">◎</span>
+      75                      <div>
+      59 -                        <strong>Streamlit app running?</strong>
+      60 -                        <span>Run <code>streamlit run knowledge
+         -_graph_rag.py</code> or use Docker Compose.</span>             
+      76 +                        <strong>Flask app running?</strong>    
+      77 +                        <span>The application is running at <co
+         +de>http://localhost:5001</code>.</span>                        
+      78                      </div>
+      79                  </div>
+      80              </div>
+
+● Write(requirements.txt)
+  ⎿  Added 2 lines, removed 3 lines
+      1 -streamlit>=1.28.0                                               
+      2 -ollama>=0.1.0                                                   
+      3 -neo4j>=5.0.0                                                    
+      1  flask==3.1.1
+      2  werkzeug==3.1.3
+      3 +ollama>=0.1.0                                                   
+      4 +neo4j>=5.0.0                                                    
+      5  pytest==8.3.5
+      6  pytest-flask==1.3.0
+
+● Write(README.md)
+  ⎿  Wrote 207 lines to README.md
+       1 # MultiHop RAG — Knowledge Graph
+       2 
+       3 A Flask-based Knowledge Graph RAG (Retrieval-Augmented Generatio
+         n) application that combines graph-based storage with LLM-powere
+         d entity extraction and multi-hop reasoning to provide answers w
+         ith verifiable citations.
+       4 
+       5 ## Features
+       6 
+       7 - **Document Processing**: Paste any text and automatically extr
+         act entities (people, organizations, technologies, concepts) and
+          relationships using an LLM
+       8 - **Multi-Hop Traversal**: Query the knowledge graph with config
+         urable hop counts to find connected information
+       9 - **Verifiable Citations**: Get answers with inline citations ([
+         1], [2], etc.) that link back to source documents
+      10 - **Graph Exploration**: Browse entities by type and explore rel
+         ationships in an interactive interface
+     … +197 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● I need to update the docker-compose.yml to remove the Streamlit service since
+  all functionality is now in Flask:
+
+● Write(docker-compose.yml)
+  ⎿  Added 6 lines, removed 21 lines
+      50        retries: 5
+      51        start_period: 60s
+      52  
+      53 -  # ── Streamlit RAG App ──────────────────────────────────────
+         -───────                                                        
+      54 -  streamlit:                                                   
+      53 +  # ── Flask Web Frontend ─────────────────────────────────────
+         +───────                                                        
+      54 +  flask:                                                       
+      55      build:
+      56        context: .
+      57 -      dockerfile: Dockerfile.streamlit                         
+      58 -    container_name: kg-rag-streamlit                           
+      57 +      dockerfile: Dockerfile                                   
+      58 +    container_name: kg-rag-flask                               
+      59      restart: unless-stopped
+      60      ports:
+      61 -      - "8501:8501"                                            
+      61 +      - "5001:5001"                                            
+      62      environment:
+      63 +      - SECRET_KEY=change-me-in-production                     
+      64        - NEO4J_URI=bolt://neo4j:7687
+      65        - NEO4J_USER=neo4j
+      66        - NEO4J_PASSWORD=password
+     ...
+      72        ollama:
+      73          condition: service_started
+      74  
+      74 -  # ── Flask Web Frontend ─────────────────────────────────────
+         -───────                                                        
+      75 -  flask:                                                       
+      76 -    build:                                                     
+      77 -      context: .                                               
+      78 -      dockerfile: Dockerfile                                   
+      79 -    container_name: kg-rag-flask                               
+      80 -    restart: unless-stopped                                    
+      81 -    ports:                                                     
+      82 -      - "5001:5001"                                            
+      83 -    environment:                                               
+      84 -      - SECRET_KEY=change-me-in-production                     
+      85 -      - NEO4J_URI=bolt://neo4j:7687                            
+      86 -    depends_on:                                                
+      87 -      neo4j:                                                   
+      88 -        condition: service_healthy                             
+      89 -                                                               
+      75  volumes:
+      76    neo4j_data:
+      77    neo4j_logs:
+
+● Now let me update the Dockerfile to ensure it has all the correct
+  dependencies:
+
+  Read 2 files (ctrl+o to expand)
+
+● The Dockerfile looks good. Let me delete the Streamlit Dockerfile since we no
+  longer need it, and also update the tests file to work with the new Flask app:
+
+● Bash(rm
+      "C:\Users\91983\Downloads\multihop_rag\multihop_rag\Dockerfile.streamlit")
+  ⎿  Done
+
+  Read 1 file (ctrl+o to expand)
+● The tests look good for the Flask app. Let me also check the static files and
+  update the .gitignore:
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Let me check the main.js file and verify everything is in place:
+
+  Read 1 file (ctrl+o to expand)
+
+● All the files are in place. Let me verify the application can be imported
+  correctly:
+
+● Bash(cd /d "C:\Users\91983\Downloads\multihop_rag\multihop_rag" && python -c
+      "from app import app; print('Import successful')")
+  ⎿  Error: Exit code 1
+     /usr/bin/bash: line 1: cd: too many arguments
+
+● Bash(cd 'C:/Users/91983/Downloads/multihop_rag/multihop_rag' && python -c
+      "from app import app; print('Import successful')")
+  ⎿  Error: Exit code 1
+     Traceback (most recent call last):
+
+       File "<string>", line 1, in <module>
+
+         from app import app; print('Import successful')
+
+         ^^^^^^^^^^^^^^^^^^^
+
+       File "C:\Users\91983\Downloads\multihop_rag\multihop_rag\app.py", line 5,
+      in <module>
+
+
+● The import fails because Flask isn't installed in the system Python. Let me
+  test with the virtual environment:
+
+● Bash('C:/Users/91983/Downloads/multihop_rag/multihop_rag/venv/Scripts/python.e
+      xe' -c "from app import app; print('Import successful')")
+  ⎿  Import successful
+
+● The app imports successfully. Let me verify the routes are correctly
+  registered:
+
+● Bash('C:/Users/91983/Downloads/multihop_rag/multihop_rag/venv/Scripts/python.e
+      xe' -c "from app import app; print('Routes:'); [print(f'  {rule.rule} ->
+      {rule.endpoint…)
+  ⎿  Routes:
+       / -> landing
+       /register -> register
+     … +11 lines (ctrl+o to expand)
+
+● All routes are registered correctly. Let me update the task list to mark
+  everything complete:
+
+● I've successfully converted the Streamlit app to a pure Flask application.
+  Here's what was done:
+
+  Changes Made
+
+  1. Updated app.py
+
+  - Merged all Knowledge Graph RAG functionality from knowledge_graph_rag.py
+  into the Flask app
+  - Added Neo4j graph operations (entity/relationship CRUD, multi-hop traversal,
+   semantic search)
+  - Added LLM entity extraction with Ollama
+  - Added RAG with citations generation
+  - Created REST API endpoints:
+    - POST /api/extract-entities - Extract entities from documents
+    - POST /api/ask - Ask questions with citations
+    - GET /api/graph/stats - Get graph statistics
+    - GET /api/graph/entities - List all entities
+    - GET /api/graph/relationships - List all relationships
+    - POST /api/graph/clear - Clear the graph
+
+  2. Created template/knowledge_graph.html
+
+  - Full UI for document upload, Q&A, and graph exploration
+  - Tab-based interface (Add Documents, Ask & Cite, Explore Graph)
+  - Real-time entity extraction preview
+  - Citation display with source documents
+  - Reasoning trace visualization
+
+  3. Updated template/dashboard.html
+
+  - Removed Streamlit references
+  - Added direct links to Knowledge Graph page
+  - Shows graph stats on dashboard
+
+  4. Updated requirements.txt
+
+  - Removed streamlit dependency
+
+  5. Updated docker-compose.yml
+
+  - Removed Streamlit service
+  - Flask app now handles all functionality
+
+  6. Deleted Dockerfile.streamlit
+
+  - No longer needed
+
+  7. Created README.md
+
+  - Complete documentation with setup instructions, API endpoints, and
+  troubleshooting
+
+  To Run
+
+  # Using venv
+  venv\Scripts\activate
+  python app.py
+
+  # Or with Docker
+  docker-compose up -d
+
+  Access the app at http://localhost:5001
+
+✻ Crunched for 17m 32s
+
+❯ analyze  @template\knowledge_graph.html it is showing some error remove them  
+  ⎿  Read template\knowledge_graph.html (983 lines)
+
+  Read 1 file (ctrl+o to expand)
+
+● I can see the template. Let me check what specific errors might be occurring.
+  The most common issues are:
+
+  1. JavaScript optional chaining (?.) compatibility
+  2. API calls failing without proper error handling for authentication
+  3. Missing CSS classes
+
+  Let me fix these issues:
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 7 lines, removed 3 lines
+      960  }
+      961  
+      962  // Refresh buttons
+      963 -document.getElementById('refresh-entities')?.addEventListener(
+          -'click', loadGraphData);                                      
+      964 -document.getElementById('refresh-relationships')?.addEventList
+          -ener('click', loadGraphData);                                 
+      963 +const refreshEntitiesBtn = document.getElementById('refresh-en
+          +tities');                                                     
+      964 +const refreshRelationshipsBtn = document.getElementById('refre
+          +sh-relationships');                                           
+      965 +if (refreshEntitiesBtn) refreshEntitiesBtn.addEventListener('c
+          +lick', loadGraphData);                                        
+      966 +if (refreshRelationshipsBtn) refreshRelationshipsBtn.addEventL
+          +istener('click', loadGraphData);                              
+      967  
+      968  // Clear graph
+      967 -document.getElementById('clear-graph-btn')?.addEventListener('
+          -click', async () => {                                         
+      969 +const clearGraphBtn = document.getElementById('clear-graph-btn
+          +');                                                           
+      970 +if (clearGraphBtn) {                                          
+      971 +    clearGraphBtn.addEventListener('click', async () => {     
+      972      if (!confirm('Are you sure you want to clear the entire gr
+           aph? This cannot be undone.')) return;
+      973  
+      974      try {
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 2 lines, removed 1 line
+      978      } catch (err) {
+      979          alert('Error: ' + err.message);
+      980      }
+      981 -});                                                           
+      981 +    });                                                       
+      982 +}                                                             
+      983  
+      984  // Initial load
+      985  loadGraphData();
+● Now let me add the missing .form-input class to the template CSS since it's
+  referenced but not defined:
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 17 lines
+      125      box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+      126  }
+      127  
+      128 +.form-input {                                                 
+      129 +    width: 100%;                                              
+      130 +    padding: 0.75rem;                                         
+      131 +    background: var(--bg-2);                                  
+      132 +    border: 1px solid var(--border-2);                        
+      133 +    border-radius: var(--radius-sm);                          
+      134 +    font-family: var(--font-body);                            
+      135 +    font-size: 0.9rem;                                        
+      136 +    color: var(--ink);                                        
+      137 +}                                                             
+      138 +                                                              
+      139 +.form-input:focus {                                           
+      140 +    outline: none;                                            
+      141 +    border-color: var(--accent);                              
+      142 +    box-shadow: 0 0 0 3px rgba(108,99,255,0.15);              
+      143 +}                                                             
+      144 +                                                              
+      145  .doc-preview {
+      146      background: var(--bg-card);
+      147      border: 1px solid var(--border);
+
+● Now let me also add error handling for 401 unauthorized responses in the API
+  calls:
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 5 lines
+      793              body: JSON.stringify({ doc_name: docName, text: te
+           xt, model: document.getElementById('model-select').value })
+      794          });
+      795  
+      796 +        if (response.status === 401) {                        
+      797 +            window.location.href = '/login';                  
+      798 +            return;                                           
+      799 +        }                                                     
+      800 +                                                              
+      801          const data = await response.json();
+      802  
+      803          if (data.error) {
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 5 lines
+      868              })
+      869          });
+      870  
+      871 +        if (response.status === 401) {                        
+      872 +            window.location.href = '/login';                  
+      873 +            return;                                           
+      874 +        }                                                     
+      875 +                                                              
+      876          const data = await response.json();
+      877  
+      878          if (data.error) {
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 18 lines
+      416  
+      417  @keyframes spin { to { transform: rotate(360deg); } }
+      418  
+      419 +/* Button Ghost */                                            
+      420 +.btn-ghost {                                                  
+      421 +    background: transparent;                                  
+      422 +    border: 1px solid var(--border-2);                        
+      423 +    color: var(--ink-soft);                                   
+      424 +    padding: 0.4rem 0.75rem;                                  
+      425 +    border-radius: var(--radius-sm);                          
+      426 +    cursor: pointer;                                          
+      427 +    transition: all 0.2s;                                     
+      428 +    font-family: var(--font-body);                            
+      429 +    font-size: 0.8rem;                                        
+      430 +}                                                             
+      431 +                                                              
+      432 +.btn-ghost:hover {                                            
+      433 +    border-color: var(--ink-muted);                           
+      434 +    color: var(--ink);                                        
+      435 +}                                                             
+      436 +                                                              
+      437  /* Example Questions */
+      438  .example-questions {
+      439      display: flex;
+
+● Now let me also fix the citation display to handle the missing entity_type
+  field properly:
+
+● Update(template\knowledge_graph.html)
+  ⎿  Added 5 lines, removed 3 lines
+      914              if (data.citations.length === 0) {
+      915                  citationsList.innerHTML = '<p style="color: va
+           r(--ink-muted); font-size: 0.85rem;">No specific citations cou
+           ld be extracted. Try adding more documents.</p>';
+      916              } else {
+      917 -                citationsList.innerHTML = data.citations.map(c
+          - => `                                                         
+      917 +                citationsList.innerHTML = data.citations.map(c
+          + => {                                                         
+      918 +                    const entityType = c.entity_type || 'CONCE
+          +PT';                                                          
+      919 +                    return `                                  
+      920                      <div class="citation-card">
+      921                          <span class="citation-ref">${c.ref}</s
+           pan>
+      920 -                        <span class="entity-badge badge-${c.en
+          -tity_type || 'CONCEPT'}">${c.entity_type || 'ENTITY'}</span>  
+      922 +                        <span class="entity-badge badge-${enti
+          +tyType}">${entityType}</span>                                 
+      923                          <span class="citation-entity"><strong>
+           ${c.entity}</strong></span>
+      924                          <span class="citation-doc">📄 ${c.sour
+           ce_document}</span>
+      925                          <div class="citation-text">${c.source_
+           text.substring(0, 400)}${c.source_text.length > 400 ? '…' : ''
+           }</div>
+     ...
+      927                              Confidence: ${(c.confidence * 100)
+           .toFixed(0)}%
+      928                          </div>
+      929                      </div>
+      928 -                `).join('');                                  
+      930 +                `}).join('');                                 
+      931              }
+      932          }
+      933      } catch (err) {
+
+● Now let me test if the template renders correctly:
+
+● Bash('C:/Users/91983/Downloads/multihop_rag/multihop_rag/venv/Scripts/python.e
+      xe' -c "
+      from app import app…)
+  ⎿  [2026-04-03 02:55:58,607] ERROR in app: Exception on /register [POST]
+     Traceback (most recent call last):
+       File "C:\Users\91983\Downloads\multihop_rag\multihop_rag\venv\Lib\si
+     … +19 lines (ctrl+o to expand)
+  ⎿  API Error: 429 
+     {"type":"error","error":{"type":"rate_limit_error","message":"you 
+     (aiollama32) have reached your session usage limit, upgrade for higher 
+     limits: 
+     https://ollama.com/upgrade"},"request_id":"req_976749e6aca73618c2e9156e"}
+
+✻ Cooked for 6m 4s

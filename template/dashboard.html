@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — MultiHop RAG{% endblock %}
+
+{% block content %}
+<section class="dashboard">
+    <div class="dash-inner">
+        <div class="dash-header">
+            <div>
+                <h1 class="dash-title">Welcome, {{ user.name.split()[0] }}!</h1>
+                <p class="dash-subtitle">Your Knowledge Graph RAG workspace</p>
+            </div>
+            <a href="{{ url_for('knowledge_graph') }}" class="btn-primary">
+                Open Knowledge Graph
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+        </div>
+
+        {% if neo4j_connected and graph_stats %}
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem;">
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center;">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--accent);">{{ graph_stats.nodes }}</div>
+                <div style="font-size: 0.85rem; color: var(--ink-muted); margin-top: 0.25rem;">Entities</div>
+            </div>
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center;">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--accent);">{{ graph_stats.relationships }}</div>
+                <div style="font-size: 0.85rem; color: var(--ink-muted); margin-top: 0.25rem;">Relationships</div>
+            </div>
+            <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center;">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--accent);">{{ graph_stats.documents|length }}</div>
+                <div style="font-size: 0.85rem; color: var(--ink-muted); margin-top: 0.25rem;">Documents</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="dash-grid">
+            <div class="dash-card">
+                <div class="dash-card__icon">📄</div>
+                <h3 class="dash-card__title">Add Documents</h3>
+                <p class="dash-card__body">Paste any text or paper to extract entities and build your knowledge graph. The LLM identifies people, organizations, technologies, and relationships.</p>
+                <a href="{{ url_for('knowledge_graph') }}#add-docs" class="dash-card__link">Add Documents →</a>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card__icon">🔍</div>
+                <h3 class="dash-card__title">Ask Questions</h3>
+                <p class="dash-card__body">Query your graph with multi-hop traversal. Get answers with inline [1][2] citations traceable to source documents.</p>
+                <a href="{{ url_for('knowledge_graph') }}#ask-cite" class="dash-card__link">Ask Questions →</a>
+            </div>
+            <div class="dash-card">
+                <div class="dash-card__icon">🔬</div>
+                <h3 class="dash-card__title">View Graph</h3>
+                <p class="dash-card__body">Inspect the entity and relationship structure of your knowledge graph. Browse entities by type and explore connections.</p>
+                <a href="{{ url_for('knowledge_graph') }}#explore" class="dash-card__link">Explore Graph →</a>
+            </div>
+        </div>
+
+        <div class="dash-info">
+            <h2 class="dash-info__title">Quick setup checklist</h2>
+            <div class="checklist">
+                <div class="check-item">
+                    <span class="check-icon">◎</span>
+                    <div>
+                        <strong>Neo4j running?</strong>
+                        <span>Visit <code>http://localhost:7474</code> to confirm the graph database is up.</span>
+                    </div>
+                </div>
+                <div class="check-item">
+                    <span class="check-icon">◎</span>
+                    <div>
+                        <strong>Ollama model pulled?</strong>
+                        <span>Run <code>ollama pull llama3.2</code> in your terminal.</span>
+                    </div>
+                </div>
+                <div class="check-item">
+                    <span class="check-icon">◎</span>
+                    <div>
+                        <strong>Flask app running?</strong>
+                        <span>The application is running at <code>http://localhost:5001</code>.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
